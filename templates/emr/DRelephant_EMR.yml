@@ -1,0 +1,179 @@
+{
+    "Description": "CloudFormation template for creating an EMR cluster with Dr.Elephant and Sparklens tool installed",
+    "Outputs": {
+        "IPAddress": {
+            "Description": "IP address of EMR cluster MasterNode",
+            "Value": {
+                "Fn::GetAtt": [
+                    "EMRSampleCluster",
+                    "MasterPublicDNS"
+                ]
+            }
+        }
+    },
+    "Parameters": {
+       
+        "CoreInstanceCount": {
+            "Default": "2",
+            "Description": "Number of core instances",
+            "Type": "Number"
+        },
+        "CoreInstanceType": {
+            "Default": "m5.4xlarge",
+            "Description": "Instance Type of the core node",
+            "Type": "String"
+        },
+        "EMRClusterName": {
+            "Default": "EMRDrElephantSparklensPOCCluster",
+            "Description": "Cluster name for the EMR",
+            "Type": "String"
+        },
+        "EMRLogDir": {
+            "Description": "Log Dir for the EMR cluster",
+            "Type": "String"
+        },
+        "KeyName": {
+            "Description": "Name of an existing EC2 KeyPair to enable SSH to the instances",
+            "Type": "AWS::EC2::KeyPair::KeyName"
+        },
+        "MasterInstanceType": {
+            "Default": "m5.4xlarge",
+            "Description": "Instance Type of the master node",
+            "Type": "String"
+        },
+        "Subnet": {
+            "Description": "Subnet ID for creating the EMR cluster",
+            "Type": "AWS::EC2::Subnet::Id"
+        },
+        "VPC": {
+            "Description": "VPC ID for creating the EMR cluster",
+            "Type": "AWS::EC2::VPC::Id"
+        },
+         "emrReleaseLabel": {
+            "Description": "EMR Version",
+            "AllowedValues" : ["emr-5.26.0", "emr-5.27.0"],
+            "Type": "String",
+            "Default": "emr-5.26.0"
+        },
+       "s3artifactsRepo": {
+	       "Default": "s3://nivasblog/emrblog",
+	       "Description": "S3 Repo URL for this blog.",
+	       "Type": "String"
+     	}
+    },
+
+    "Resources": {
+        "EMRSampleCluster": {
+            "Properties": {
+                "Applications": [
+                    {
+                        "Name": "Hive"
+                    },
+                    {
+                        "Name": "Spark"
+                    },
+                    {
+                        "Name": "Hue"
+                    },
+                    {
+                        "Name": "ZooKeeper"
+                    }
+                ],
+                
+                "Instances": {
+                    "CoreInstanceGroup": {
+                        "EbsConfiguration": {
+                            "EbsBlockDeviceConfigs": [
+                                {
+                                    "VolumeSpecification": {
+                                        "SizeInGB": "100",
+                                        "VolumeType": "gp2"
+                                    },
+                                    "VolumesPerInstance": "1"
+                                }
+                            ],
+                            "EbsOptimized": "true"
+                        },
+                        "InstanceCount": {
+                            "Ref": "CoreInstanceCount"
+                        },
+                        "InstanceType": {
+                            "Ref": "CoreInstanceType"
+                        },
+                        "Market": "ON_DEMAND",
+                        "Name": "Core Instance"
+                    },
+                    "Ec2KeyName": {
+                        "Ref": "KeyName"
+                    },
+                    "Ec2SubnetId": {
+                        "Ref": "Subnet"
+                    },
+                    "MasterInstanceGroup": {
+                        "InstanceCount": "1",
+                        "InstanceType": {
+                            "Ref": "MasterInstanceType"
+                        },
+                        "Market": "ON_DEMAND",
+                        "Name": "Master Instance"
+                    },
+                    "TerminationProtected": "false"
+                },
+                "JobFlowRole": "EMR_EC2_DefaultRole",
+                "LogUri": {
+                    "Ref": "EMRLogDir"
+                },
+                "Name": {
+                    "Ref": "EMRClusterName"
+                },
+                "ReleaseLabel": {
+                    "Ref": "emrReleaseLabel"
+                },
+                "ServiceRole": "EMR_DefaultRole",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "EMR Sample Cluster"
+                    }
+                ],
+                "VisibleToAllUsers": "true"
+            },
+            "Type": "AWS::EMR::Cluster"
+        },
+        "Installtools": {
+            "Properties": {
+                "ActionOnFailure": "CONTINUE",
+                "HadoopJarStep": {
+                    "Args": [
+                        "s3://aws-bigdata-blog/artifacts/aws-blog-hadoop-spark-performance-tuning/install-dr-elephant-emr5.sh",
+                        {
+                          "Ref" : "AWS::Region"
+                        }
+                    ],
+                    "Jar": "s3://elasticmapreduce/libs/script-runner/script-runner.jar",
+                    "MainClass": ""
+                },
+                "JobFlowId": {
+                    "Ref": "EMRSampleCluster"
+                },
+                "Name": "Installtools"
+            },
+            "Type": "AWS::EMR::Step"
+        },
+        "HadoopDebug": {
+            "Properties": {
+                "ActionOnFailure": "CONTINUE",
+                "HadoopJarStep": {
+                    "Args": ["state-pusher-script"],
+                    "Jar": "command-runner.jar",
+                    "MainClass": ""
+                },
+                "JobFlowId": {
+                    "Ref": "EMRSampleCluster"
+                },
+                "Name": "HadoopDebug"
+            },
+            "Type": "AWS::EMR::Step"
+        }
+    }
+}
